@@ -2,22 +2,20 @@ name: Daily News Bot
 
 on:
   schedule:
-    # 這裡的 Cron 是使用國際標準時間 (UTC)
-    # 台灣時間早上 9:00 (GMT+8) 等於 UTC 時間的凌晨 1:00
     - cron: '0 1 * * *'
-  workflow_dispatch: # 允許你隨時在 GitHub 後台手動點擊執行測試
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-python: '3.10'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
