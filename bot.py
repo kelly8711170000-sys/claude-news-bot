@@ -5,7 +5,6 @@ import feedparser
 import requests
 from anthropic import Anthropic
 
-# 從 GitHub Secrets 中安全讀取環境變數
 CLAUDE_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
@@ -13,9 +12,8 @@ if not CLAUDE_API_KEY or not DISCORD_WEBHOOK_URL:
     print("錯誤：找不到環境變數 ANTHROPIC_API_KEY 或 DISCORD_WEBHOOK_URL。請檢查 GitHub Secrets 設定。")
     sys.exit(1)
 
-# 設定新聞來源 (數位時代官方 RSS)
 SOURCES = [
-    {"name": "數位時代", "url": "https://www.bnext.com.tw/rss"},
+    {"name": "數位時代", "url": "https://news.google.com/rss/search?q=site:bnext.com.tw+AI&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"},
     {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/"}
 ]
 
@@ -28,15 +26,14 @@ def fetch_news():
     for source in SOURCES:
         try:
             feed = feedparser.parse(source["url"], request_headers=FEED_HEADERS)
-            # 【關鍵修正】放寬到 15 則，確保包含過去 24 小時內的各種數位產業案例
-            for entry in feed.entries[:15]:
+            print(f"{source['name']} 抓到 {len(feed.entries)} 篇文章")
+            for entry in feed.entries[:5]:
                 all_articles.append({
                     "title": entry.title,
                     "link": entry.link,
                     "summary": entry.get("summary", entry.get("description", "")),
                     "source": source["name"]
                 })
-            print(f"成功抓取 {source['name']} 最新 {len(feed.entries[:15])} 則原始新聞。")
         except Exception as e:
             print(f"抓取 {source['name']} 失敗: {e}")
     return all_articles
@@ -45,7 +42,6 @@ def generate_summary(articles):
     if not articles:
         return "今天未能成功抓取到任何新聞。"
 
-    # 【關鍵修正】修正為官方最穩定、不容易報 404 的標準模型名稱字串
     claude_client = Anthropic(api_key=CLAUDE_API_KEY)
 
     news_data_text = ""
@@ -59,28 +55,29 @@ def generate_summary(articles):
         )
 
     prompt = f"""你是一位資深產品策略顧問、商業分析師與科技趨勢研究員。
+
 現在要請你篩選並整理我提供的新聞列表。
 
-篩選主題
+# 篩選主題
 請針對 【生成式 AI 應用】 與 【商業模式創新】 兩個領域進行過濾。
 
-新聞篩選標準
+# 新聞篩選標準
 請只保留符合以下條件的新聞，其餘無關的公關稿或瑣碎消息請直接忽略：
+1. 必須與 [數位產業案例 / AI / 數位產品創新] 高度相關。
+2. 聚焦於 [商業模式創新 / 技術重大突破 / 實際落地應用案例]，而非單純的資金應援或人事變動。
+3. 請從中挑選出最精華、最值得閱讀的 3-5 篇即可。
 
-必須與 [數位產業案例 / AI / 數位產品創新] 高度相關。
-聚焦於 [商業模式創新 / 技術重大突破 / 實際落地應用案例]，而非單純的資金應援或人事變動。
-請從中挑選出最精華、最值得閱讀的 3-5 篇即可。
-
-待篩選的新聞列表：
+# 待篩選的新聞列表：
 {news_data_text}
 
-摘要輸出格式
+# 摘要輸出格式
 請嚴格按照以下結構輸出（保持條列式，文字精煉，使用繁體中文）。請直接輸出最終改寫完成的 Discord 訊息內文，不要包含任何前後廢話。
+
 ---
 ## 🏢 數位時代（精選 3 則）
 (若無符合條件之新聞，請在此處直接寫：「今日無符合條件之相關新聞」)
 
-### 📌 新聞標題
+### 📌 [新聞標題](新聞連結)
 * **一句話核心觀點：** 用 150 字以內總結這篇新聞最核心的事件或結論。
 * **關鍵事實與數據：** 條列 2-3 個新聞中提及的重要數據、時間點或技術專有名詞。
 * **商業與應用啟發：** 從 [產品經理] 的視角出發，簡述這個事件對行業或未來規劃有何潛在影響或借鏡之處。
@@ -89,14 +86,14 @@ def generate_summary(articles):
 ## 🚀 TechCrunch（精選 3 則）
 (若無符合條件之新聞，請在此處直接寫：「今日無符合條件之相關新聞」)
 
-### 📌 新聞標題
+### 📌 [新聞標題](新聞連結)
 * **一句話核心觀點：** 用 150 字以內總結這篇新聞最核心的事件或結論。
 * **關鍵事實與數據：** 條列 2-3 個新聞中提及的重要數據、時間點或技術專有名詞。
 * **商業與應用啟發：** 從 [產品經理] 的視角出發，簡述這個事件對行業或未來規劃有何潛在影響或借鏡之處。"""
 
     try:
         response = claude_client.messages.create(
-            model="claude-3-5-sonnet-latest",  # 修正模型字串
+            model="claude-sonnet-4-6",
             max_tokens=2500,
             messages=[{"role": "user", "content": prompt}]
         )
