@@ -84,8 +84,13 @@ def generate_summary(articles):
 ### 📌 [新聞標題](新聞連結)
 * **一句話核心觀點：** 用 150 字以內總結這篇新聞最核心的事件或結論。
 * **關鍵事實與數據：** 條列 2-3 個新聞中提及的重要數據、時間點或技術專有名詞。
-* **商業與應用啟發：** 從 [產品經理] 的視角出發，簡述這個事件對行業或未來規劃有何潛在影響或借鏡之處。
+* **商業與應用啟發：** 從 [產品經理] 的視角出發，簡述這個事件對行業或未來規劃有何潛在影響或借鏡之處。"""
 
+    try:
+        response = claude_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2500,
+            messages=[{"role": "user", "content": prompt}]
         )
         return response.content[0].text
     except Exception as e:
@@ -94,7 +99,6 @@ def generate_summary(articles):
 def send_to_discord(content):
     full_message = "📢 **【每日 AI 與商業創新趨勢摘要】**\n\n" + content
 
-    # Discord 單則訊息上限 2000 字元，超過需分段發送
     chunks = []
     while len(full_message) > 1900:
         split_at = full_message.rfind("\n\n", 0, 1900)
@@ -116,7 +120,7 @@ def send_to_discord(content):
                 print(f"段落 {i+1} 失敗，狀態碼: {res.status_code}，回應: {res.text}")
         except Exception as e:
             print(f"發送錯誤: {e}")
-        time.sleep(0.5)  # 避免觸發 Discord rate limit
+        time.sleep(0.5)
 
 if __name__ == "__main__":
     print("開始執行新聞抓取任務...")
