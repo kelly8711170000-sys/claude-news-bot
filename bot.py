@@ -12,16 +12,21 @@ if not CLAUDE_API_KEY or not DISCORD_WEBHOOK_URL:
     print("錯誤：找不到環境變數 ANTHROPIC_API_KEY 或 DISCORD_WEBHOOK_URL。請檢查 GitHub Secrets 設定。")
     sys.exit(1)
 
+# 修改後
 SOURCES = [
-    {"name": "數位時代", "url": "https://www.bnext.com.tw/feed"},
+    {"name": "數位時代", "url": "https://www.bnext.com.tw/rss"},
     {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/"}
 ]
+
+FEED_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36"
+}
 
 def fetch_news():
     all_articles = []
     for source in SOURCES:
         try:
-            feed = feedparser.parse(source["url"])
+            feed = feedparser.parse(source["url"], request_headers=FEED_HEADERS)
             for entry in feed.entries[:5]:
                 all_articles.append({
                     "title": entry.title,
