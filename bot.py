@@ -1,10 +1,10 @@
 import os
 import sys
-import time
 import feedparser
 import requests
 from anthropic import Anthropic
 
+# 從 GitHub Secrets 中安全讀取環境變數
 CLAUDE_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
@@ -12,6 +12,7 @@ if not CLAUDE_API_KEY or not DISCORD_WEBHOOK_URL:
     print("錯誤：找不到環境變數 ANTHROPIC_API_KEY 或 DISCORD_WEBHOOK_URL。請檢查 GitHub Secrets 設定。")
     sys.exit(1)
 
+# 設定新聞來源 (數位時代 & TechCrunch)
 SOURCES = [
     {"name": "數位時代", "url": "https://www.bnext.com.tw/feed"},
     {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/"}
@@ -22,6 +23,7 @@ def fetch_news():
     for source in SOURCES:
         try:
             feed = feedparser.parse(source["url"])
+            # 抓取最新的 5 篇文章進行篩選
             for entry in feed.entries[:5]:
                 all_articles.append({
                     "title": entry.title,
@@ -39,15 +41,10 @@ def generate_summary(articles):
 
     claude_client = Anthropic(api_key=CLAUDE_API_KEY)
 
+    # 建立適合餵給 Claude 的新聞文本資料
     news_data_text = ""
     for idx, art in enumerate(articles, 1):
-        news_data_text += (
-            f"[{idx}] 來源: {art['source']}\n"
-            f"標題: {art['title']}\n"
-            f"連結: {art['link']}\n"
-            f"摘要: {art['summary']}\n"
-            + "-" * 30 + "\n"
-        )
+        news_data_text += f"[{idx}] 來源: {art['source']}\n標題: {art['title']}\n連結: {art['link']}\n摘要: {art['summary']}\n" + "-"*30 + "\n"
 
     prompt = f"""你是一位資深產品策略顧問、商業分析師與科技趨勢研究員。
 
@@ -73,7 +70,7 @@ def generate_summary(articles):
 * **關鍵事實與數據：** 條列 2-3 個新聞中提及的重要數據、時間點或技術專有名詞。
 * **商業與應用啟發：** 從 [產品經理] 的視角出發，簡述這個事件對行業或未來規劃有何潛在影響或借鏡之處。
 
-請直接輸出最終改寫完成的 Discord 訊息內文（不要包含任何前後廢話）。"""
+請直接輸出最終改寫完成的 Discord 訊息內文（不要包含「以下是為您整理的內容」等任何前後廢話）。"""
 
     try:
         response = claude_client.messages.create(
@@ -86,9 +83,10 @@ def generate_summary(articles):
         return f"Claude 生成摘要時發生錯誤: {e}"
 
 def send_to_discord(content):
-    full_message = "📢 **【每日 AI 與商業創新趨勢摘要】**\n\n" + content
+    full_message = f"📢 **【每日 AI 與商業創新趨勢摘要】**\n\n{content}"
 
     # Discord 單則訊息上限 2000 字元，超過需分段發送
+    import time
     chunks = []
     while len(full_message) > 1900:
         split_at = full_message.rfind("\n\n", 0, 1900)
@@ -105,12 +103,12 @@ def send_to_discord(content):
         try:
             res = requests.post(DISCORD_WEBHOOK_URL, json={"content": chunk})
             if res.status_code == 204:
-                print(f"段落 {i+1}/{len(chunks)} 成功發送！")
+                print(f"段落 {i+1}/{len(chunks)} 成功發送到 Discord！")
             else:
-                print(f"段落 {i+1} 失敗，狀態碼: {res.status_code}，回應: {res.text}")
+                print(f"段落 {i+1} 發送失敗，狀態碼: {res.status_code}，回應: {res.text}")
         except Exception as e:
-            print(f"發送錯誤: {e}")
-        time.sleep(0.5)  # 避免觸發 Discord rate limit
+            print(f"發送到 Discord 時發生錯誤: {e}")
+        time.sleep(0.5)
 
 if __name__ == "__main__":
     print("開始執行新聞抓取任務...")
